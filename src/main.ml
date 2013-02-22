@@ -4,59 +4,6 @@ open Github_t
 open Github_j
 open Github
 
-type return_status = Error | Finished of (Unix.process_status * string * string)
-
-let read_channel chan =
-  let buffer_size = 1024 in
-  let buf = Buffer.create buffer_size in
-  let s = String.create buffer_size in
-  let rec aux buf s =
-    let chars_read = input chan s 0 buffer_size in
-    Buffer.add_substring buf s 0 chars_read;
-    if chars_read <> 0 then aux buf s
-  in 
-  aux buf s;
-  Buffer.contents buf
-    
-let log_file log_path out =
-  match log_path with
-      None -> ()
-    | Some log -> 
-        (* prerr_endline ("logging in " ^ log); *)
-        let ch = open_out_gen [Open_wronly; Open_append; Open_creat] 0o644 log in
-        output_string ch out;
-        close_out ch
-          
-let execute ?(env=[| |]) ?log_path path cmd =
-  prerr_endline ("Executing " ^ cmd ^ " in " ^ path);
-  let curpath = Unix.getcwd () in
-  try
-    Unix.chdir path;
-    let ic, oc, ec = Unix.open_process_full cmd env in
-    let out = read_channel ic in
-    let err = read_channel ec in
-    let exit_status = Unix.close_process_full (ic, oc, ec) in
-    Unix.chdir curpath;
-    log_file log_path out;
-    log_file log_path err;
-    Finished (exit_status,out,err)
-  with 
-  | e -> 
-    Unix.chdir curpath;
-    Printexc.print_backtrace stderr;
-    Error
-
-let run ?(env=[| |]) path cmd  =
-  let get_error_code = function
-    | Unix.WEXITED r -> r
-    | Unix.WSIGNALED r -> r
-    | Unix.WSTOPPED r -> r in      
-  let res = execute ~env ~log_path:"/tmp/prdup.log" path cmd in
-  match res with
-    Finished (Unix.WEXITED 0,_,_) -> () (* OK !! *)
-  | Error -> failwith (cmd ^ " : Error")
-  | Finished (r,_,_) -> 
-    failwith (cmd ^ " : Failed with code " ^ (string_of_int (get_error_code r)))
 
 let api = "https://api.github.com"
 
@@ -69,21 +16,18 @@ let create_pull_request ~title ~description ~user ~branch_name ~dest_branch ~rep
   
 let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller ~user_name ~user_email =
   let repo_path = "/tmp/" ^ repo in
-  let cmds = [
-    ("/tmp", ("git clone -b " ^ dest_branch ^ " git@github.com:xen-org/xen-api.git"));
-    (repo_path, ("git config user.name " ^ user_name));
-    (repo_path, ("git config user.email " ^ user_email));
-    (repo_path, ("git remote add " ^ user ^ " git@github.com:" ^ user ^ "/" ^ repo ^ ".git"));
-    (repo_path, ("git fetch " ^ user));
-    (repo_path, ("git checkout -b " ^ branch_name));
-  ] in
-  let cherry_pick sha = run repo_path ("git cherry-pick " ^ sha) in
+  let cherry_pick sha = Command.run repo_path ("git cherry-pick " ^ sha) in
   try 
+    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ " git@github.com:xen-org/xen-api.git");
+    Command.run repo_path ("git config user.name " ^ user_name);
+    Command.run repo_path ("git config user.email " ^ user_email);
     if caller <> user then
-      run repo_path ("git remote add " ^ caller ^ " git@github.com:" ^ caller ^ "/" ^ repo ^ ".git");
-    List.iter (fun (path,cmd) -> run path cmd) cmds;
+      Command.run repo_path ("git remote add " ^ user ^ " git://github.com/" ^ user ^ "/" ^ repo ^ ".git");
+    Command.run repo_path ("git remote add " ^ caller ^ " git@github.com:" ^ caller ^ "/" ^ repo ^ ".git");
+    Command.run repo_path ("git fetch " ^ user);
+    Command.run repo_path ("git checkout -b " ^ branch_name);
     List.iter (fun sha -> cherry_pick sha) shas;
-    run repo_path ("git push " ^ caller ^ " " ^ branch_name)
+    Command.run repo_path ("git push " ^ caller ^ " " ^ branch_name)
   with Failure s -> prerr_endline s;
     ()
       
@@ -100,7 +44,7 @@ let pullrequest_commits ~user ~repo ~issue_number =
 let get_pullrequest ~token ~repo ~user ~issue_number =
   let uri = URI.repo_issue ~user ~repo ~issue_number in
   API.get ~token ~uri (fun b -> return (issue_of_string b))
-
+    
 let get_pullrequest_commits ~token ~repo ~user ~issue_number =
   let uri = pullrequest_commits ~user ~repo ~issue_number in
   API.get ~token ~uri (fun b -> return (repo_commits_of_string b))
