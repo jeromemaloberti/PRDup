@@ -1,0 +1,11 @@
+name: PRDuplicate
+version: 0.1
+synopsis: Duplicate pull-requests on github
+obuild-ver: 1
+
+executable PRDuplicate
+  main: main.ml
+  src-dir: src
+  pp: camlp4o
+  BuildDepends:  cohttp.lwt, lwt.syntax, github
+
