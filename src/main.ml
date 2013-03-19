@@ -14,13 +14,11 @@ let create_pull_request ~title ~description ~user ~branch_name ~dest_branch ~rep
   let uri =  Uri.of_string (Printf.sprintf "%s/repos/%s/%s/pulls" api user repo) in
   API.post ~body ~uri ~token ~expected_code:`Created (fun body -> return body)
   
-let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller ~user_name ~user_email =
+let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller =
   let repo_path = "/tmp/" ^ repo in
   let cherry_pick sha = Command.run repo_path ("git cherry-pick " ^ sha) in
   try 
     Command.run "/tmp" ("git clone -b " ^ dest_branch ^ " git@github.com:xen-org/" ^ repo ^ ".git");
-    Command.run repo_path ("git config user.name " ^ user_name);
-    Command.run repo_path ("git config user.email " ^ user_email);
     if caller <> user then
       Command.run repo_path ("git remote add " ^ user ^ " git://github.com/" ^ user ^ "/" ^ repo ^ ".git");
     Command.run repo_path ("git remote add " ^ caller ^ " git@github.com:" ^ caller ^ "/" ^ repo ^ ".git");
@@ -49,7 +47,7 @@ let get_pullrequest_commits ~token ~repo ~user ~issue_number =
   let uri = pullrequest_commits ~user ~repo ~issue_number in
   API.get ~token ~uri (fun b -> return (repo_commits_of_string b))
 
-let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name ~user_name ~user_email =
+let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name =
   lwt token = get_token ~user ~pass in
   lwt r = 
     let open Github.Monad in
@@ -60,8 +58,10 @@ let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name ~user_name
       get_pullrequest_commits ~token ~user:"xen-org" ~repo ~issue_number >>=
 	fun cs -> let shas = List.map (fun c -> eprintf "commit: %s\n" c.repo_commit_sha; c.repo_commit_sha) cs in
 		  prepare_git_repo ~dest_branch ~user:pr.issue_user.user_login ~repo ~shas 
-		    ~branch_name ~caller:user ~user_name ~user_email;
-		  create_pull_request ~title:pr.issue_title ~description:pr.issue_body ~user:"xen-org" ~branch_name ~dest_branch ~repo ~token ~caller:user >>= fun body -> prerr_endline body;
+		    ~branch_name ~caller:user;
+		  create_pull_request ~title:pr.issue_title ~description:pr.issue_body ~user:"xen-org"
+		    ~branch_name ~dest_branch ~repo ~token
+		    ~caller:user >>= fun body -> prerr_endline body; 
 		  return ()
     ) in
   return ()
@@ -91,8 +91,6 @@ let _ =
   let repo = ref None in
   let dest_branch = ref None in
   let branch_name = ref None in
-  let git_user_name = ref None in
-  let git_user_email = ref None in
   Arg.parse
     [
       ("-u", Arg.String (fun x -> username := Some x), "Github username");
@@ -101,20 +99,18 @@ let _ =
       ("-r", Arg.String (fun x -> repo := Some x), "Github repo");
       ("-d", Arg.String (fun x -> dest_branch := Some x), "Github destination branch");
       ("-b", Arg.String (fun x -> branch_name := Some x), "Github new branch name");
-      ("-g", Arg.String (fun x -> git_user_name := Some x), "Git committer name");
-      ("-e", Arg.String (fun x -> git_user_email := Some x), "Git committer email");
     ]
     (fun x -> Printf.eprintf "Warning: ignoring unexpected argument %s\n" x)
     usage;
-  match !username, !issue_number, !repo, !dest_branch, !branch_name, !git_user_name, !git_user_email with
-  | Some u, Some n, Some r, Some d, Some b, Some g, Some e ->
+  match !username, !issue_number, !repo, !dest_branch, !branch_name with
+  | Some u, Some n, Some r, Some d, Some b ->
     let pass = match !password with
       | None -> read_line_no_echo ~pre:"Password: " ()
       | Some p -> p in
     Printf.printf "OK.\n";
     Lwt_main.run (
       pr_info ~user:u ~pass ~issue_number:n ~repo:r ~dest_branch:d
-        ~branch_name:b ~user_name:g ~user_email:e
+        ~branch_name:b
     )
   | _ ->
     print_endline usage;
