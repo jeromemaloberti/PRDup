@@ -18,7 +18,7 @@ let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller ~user_n
   let repo_path = "/tmp/" ^ repo in
   let cherry_pick sha = Command.run repo_path ("git cherry-pick " ^ sha) in
   try 
-    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ " git@github.com:xen-org/xen-api.git");
+    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ "git@github.com:xen-org/" ^ repo ^ ".git");
     Command.run repo_path ("git config user.name " ^ user_name);
     Command.run repo_path ("git config user.email " ^ user_email);
     if caller <> user then
@@ -58,7 +58,7 @@ let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name ~user_name
 	fun pr ->
       eprintf "pullrequest %s user %s\n" pr.issue_title pr.issue_user.user_login;
       get_pullrequest_commits ~token ~user:"xen-org" ~repo ~issue_number >>=
-	fun cs -> let shas = List.map (fun c -> c.repo_commit_sha) cs in
+	fun cs -> let shas = List.map (fun c -> eprintf "commit: %s\n" c.repo_commit_sha; c.repo_commit_sha) cs in
 		  prepare_git_repo ~dest_branch ~user:pr.issue_user.user_login ~repo ~shas 
 		    ~branch_name ~caller:user ~user_name ~user_email;
 		  create_pull_request ~title:pr.issue_title ~description:pr.issue_body ~user:"xen-org" ~branch_name ~dest_branch ~repo ~token ~caller:user >>= fun body -> prerr_endline body;
