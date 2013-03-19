@@ -41,6 +41,8 @@ let execute ?(env=[| |]) ?log_path path cmd =
     Error
 
 let run ?(env=[| |]) path cmd  =
+  let env = Array.append env
+		(Unix.environment ()) in
   let get_error_code = function
     | Unix.WEXITED r -> r
     | Unix.WSIGNALED r -> r
