@@ -1,11 +1,17 @@
-SUFFIXES = .rl .dot
-RAGEL = ragel
+PREFIX?=/usr/local
 
-all:
-	obuild configure && obuild build
+.DEFAULT: all
+all: dist/setup
+	obuild build
+
+dist/setup:
+	obuild configure
 
 install: all
-	cp dist/build/PRDuplicate/PRDuplicate ${PREFIX}/bin/
+	cp dist/build/PRDuplicate/PRDuplicate $(PREFIX)/bin/
 
-clean: 
-	obuild clean && obuild configure
+uninstall: all
+	rm $(PREFIX)/bin/PRDuplicate
+
+clean:
+	obuild clean
