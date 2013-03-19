@@ -65,7 +65,21 @@ let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name ~user_name
 		  return ()
     ) in
   return ()
-    
+
+let read_line_no_echo ?pre () =
+	let open Unix in
+	let fd = stdout in
+	let tio_old = tcgetattr fd in
+	let tio_new = {tio_old with c_echo = false} in
+	tcsetattr fd TCSANOW tio_new ;
+	(match pre with
+	| None -> ()
+	| Some s -> Printf.printf "%s" s) ;
+	let str = read_line () in
+	tcsetattr fd TCSANOW tio_old ;
+	print_endline "" ;
+	str
+
 let _ = 
   let usage = Printf.sprintf
     "Usage: %s -u <username> -p <password> -n <pr-number> -r <repo> -d <destination-branch> -b <new-branch-name> -g <git-committer-name> -e <git-committer-email>"
@@ -92,13 +106,16 @@ let _ =
     ]
     (fun x -> Printf.eprintf "Warning: ignoring unexpected argument %s\n" x)
     usage;
-  match !username, !password, !issue_number, !repo, !dest_branch, !branch_name, !git_user_name, !git_user_email with
-  | Some u, Some p, Some n, Some r, Some d, Some b, Some g, Some e ->
+  match !username, !issue_number, !repo, !dest_branch, !branch_name, !git_user_name, !git_user_email with
+  | Some u, Some n, Some r, Some d, Some b, Some g, Some e ->
+    let pass = match !password with
+      | None -> read_line_no_echo ~pre:"Password: " ()
+      | Some p -> p in
     Printf.printf "OK.\n";
     Lwt_main.run (
-      pr_info ~user:u ~pass:p ~issue_number:n ~repo:r ~dest_branch:d ~branch_name:b ~user_name:g
-	~user_email:e
-    ) 
-  | _, _, _, _, _, _, _, _ ->
+      pr_info ~user:u ~pass ~issue_number:n ~repo:r ~dest_branch:d
+        ~branch_name:b ~user_name:g ~user_email:e
+    )
+  | _ ->
     print_endline usage;
     exit 1
