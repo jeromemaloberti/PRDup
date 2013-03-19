@@ -18,7 +18,7 @@ let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller ~user_n
   let repo_path = "/tmp/" ^ repo in
   let cherry_pick sha = Command.run repo_path ("git cherry-pick " ^ sha) in
   try 
-    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ "git@github.com:xen-org/" ^ repo ^ ".git");
+    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ " git@github.com:xen-org/" ^ repo ^ ".git");
     Command.run repo_path ("git config user.name " ^ user_name);
     Command.run repo_path ("git config user.email " ^ user_email);
     if caller <> user then
