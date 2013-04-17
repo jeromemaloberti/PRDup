@@ -94,7 +94,7 @@ let _ =
   Arg.parse
     [
       ("-u", Arg.String (fun x -> username := Some x), "Github username");
-      ("-p", Arg.String (fun x -> password := Some x), "Github password");
+      ("-p", Arg.String (fun x -> password := Some x), "Github password (optional)");
       ("-n", Arg.Int (fun x -> issue_number := Some x), "Github issue number");
       ("-r", Arg.String (fun x -> repo := Some x), "Github repo");
       ("-d", Arg.String (fun x -> dest_branch := Some x), "Github destination branch");
