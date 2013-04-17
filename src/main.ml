@@ -82,7 +82,7 @@ let read_line_no_echo ?pre () =
 
 let _ = 
   let usage = Printf.sprintf
-    "Usage: %s -u <username> -p <password> -n <pr-number> -r <repo> -d <destination-branch> -b <new-branch-name> -g <git-committer-name> -e <git-committer-email>"
+    "Usage: %s -u <username> -p <password> -n <pr-number> -r <repo> -d <destination-branch> -b <new-branch-name>"
     Sys.argv.(0)
   in
   let username = ref None in
