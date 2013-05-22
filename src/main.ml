@@ -8,11 +8,9 @@ open Github
 let api = "https://api.github.com"
 
 let create_pull_request ~title ~description ~user ~branch_name ~dest_branch ~repo ~token ~caller =
-  let pull = { pull_request_title = title; pull_request_body = Some description;
-	       pull_request_base = dest_branch; pull_request_head = (caller ^ ":" ^ branch_name) } in
-  let body = string_of_pull_request pull in
-  let uri =  Uri.of_string (Printf.sprintf "%s/repos/%s/%s/pulls" api user repo) in
-  API.post ~body ~uri ~token ~expected_code:`Created (fun body -> return body)
+  let pull = { new_pull_title = title; new_pull_body = Some description;
+	       new_pull_base = dest_branch; new_pull_head = (caller ^ ":" ^ branch_name) } in
+  Pull.create ~token ~user ~repo ~pull ()
   
 let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller =
   let repo_path = "/tmp/" ^ repo in
@@ -36,32 +34,21 @@ let get_token ~user ~pass =
   prerr_endline (Github.Token.to_string token);
   return token
 
-let pullrequest_commits ~user ~repo ~issue_number =
-  Uri.of_string (Printf.sprintf "%s/repos/%s/%s/pulls/%d/commits" api user repo issue_number)
-
-let get_pullrequest ~token ~repo ~user ~issue_number =
-  let uri = URI.repo_issue ~user ~repo ~issue_number in
-  API.get ~token ~uri (fun b -> return (issue_of_string b))
-    
-let get_pullrequest_commits ~token ~repo ~user ~issue_number =
-  let uri = pullrequest_commits ~user ~repo ~issue_number in
-  API.get ~token ~uri (fun b -> return (repo_commits_of_string b))
-
 let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name =
   lwt token = get_token ~user ~pass in
   lwt r = 
     let open Github.Monad in
     run (
-      get_pullrequest ~token ~user:"xen-org" ~repo ~issue_number >>=
+      Pull.get ~token ~user:"xen-org" ~repo ~num:issue_number () >>=
 	fun pr ->
-      eprintf "pullrequest %s user %s\n" pr.issue_title pr.issue_user.user_login;
-      get_pullrequest_commits ~token ~user:"xen-org" ~repo ~issue_number >>=
-	fun cs -> let shas = List.map (fun c -> eprintf "commit: %s\n" c.repo_commit_sha; c.repo_commit_sha) cs in
-		  prepare_git_repo ~dest_branch ~user:pr.issue_user.user_login ~repo ~shas 
+      eprintf "pullrequest %s user %s\n" pr.pull_title pr.pull_user.user_login;
+      Pull.list_commits ~token ~user:"xen-org" ~repo ~num:issue_number () >>=
+	fun cs -> let shas = List.map (fun c -> eprintf "commit: %s\n" c.commit_sha; c.commit_sha) cs in
+		  prepare_git_repo ~dest_branch ~user:pr.pull_user.user_login ~repo ~shas
 		    ~branch_name ~caller:user;
-		  create_pull_request ~title:pr.issue_title ~description:pr.issue_body ~user:"xen-org"
+		  create_pull_request ~title:pr.pull_title ~description:pr.pull_body ~user:"xen-org"
 		    ~branch_name ~dest_branch ~repo ~token
-		    ~caller:user >>= fun body -> prerr_endline body; 
+		    ~caller:user >>= fun pull -> prerr_endline pull.pull_url;
 		  return ()
     ) in
   return ()
