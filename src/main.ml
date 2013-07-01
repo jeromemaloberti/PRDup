@@ -6,6 +6,7 @@ open Github
 
 
 let api = "https://api.github.com"
+let organisation = "xapi-project"
 
 let create_pull_request ~title ~description ~user ~branch_name ~dest_branch ~repo ~token ~caller =
   let pull = { new_pull_title = title; new_pull_body = Some description;
@@ -16,7 +17,7 @@ let prepare_git_repo ~dest_branch ~user ~repo ~shas ~branch_name ~caller =
   let repo_path = "/tmp/" ^ repo in
   let cherry_pick sha = Command.run repo_path ("git cherry-pick " ^ sha) in
   try 
-    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ " git@github.com:xen-org/" ^ repo ^ ".git");
+    Command.run "/tmp" ("git clone -b " ^ dest_branch ^ " git@github.com:" ^ organisation ^ "/" ^ repo ^ ".git");
     if caller <> user then
       Command.run repo_path ("git remote add " ^ user ^ " git://github.com/" ^ user ^ "/" ^ repo ^ ".git");
     Command.run repo_path ("git remote add " ^ caller ^ " git@github.com:" ^ caller ^ "/" ^ repo ^ ".git");
@@ -39,14 +40,14 @@ let pr_info ~user ~pass ~issue_number ~dest_branch ~repo ~branch_name =
   lwt r = 
     let open Github.Monad in
     run (
-      Pull.get ~token ~user:"xen-org" ~repo ~num:issue_number () >>=
+      Pull.get ~token ~user:organisation ~repo ~num:issue_number () >>=
 	fun pr ->
       eprintf "pullrequest %s user %s\n" pr.pull_title pr.pull_user.user_login;
-      Pull.list_commits ~token ~user:"xen-org" ~repo ~num:issue_number () >>=
+      Pull.list_commits ~token ~user:organisation ~repo ~num:issue_number () >>=
 	fun cs -> let shas = List.map (fun c -> eprintf "commit: %s\n" c.commit_sha; c.commit_sha) cs in
 		  prepare_git_repo ~dest_branch ~user:pr.pull_user.user_login ~repo ~shas
 		    ~branch_name ~caller:user;
-		  create_pull_request ~title:pr.pull_title ~description:pr.pull_body ~user:"xen-org"
+		  create_pull_request ~title:pr.pull_title ~description:pr.pull_body ~user:organisation
 		    ~branch_name ~dest_branch ~repo ~token
 		    ~caller:user >>= fun pull -> prerr_endline pull.pull_url;
 		  return ()
